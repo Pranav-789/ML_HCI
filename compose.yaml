@@ -1,0 +1,36 @@
+services:
+
+  # 1. Frontend (React)
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:5000/api/v1
+    depends_on:
+      - backend
+
+  # 2. Backend (Node.js)
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "5000:5000"
+    env_file: ./backend/.env
+    environment:
+      - NODE_ENV=development
+      - ML_SERVICE_URL=http://ml_service:8000
+      - CORS_ORIGIN=http://localhost:5173
+    depends_on: []
+
+  # 3. ML Service (FastAPI)
+  ml_service:
+    build:
+      context: ./ml_service
+    ports:
+      - "8000:8000"
+    env_file: ./ml_service/.env
+    environment:
+      - SECRET_KEY=your-super-secret-key
+      - ALGORITHM=HS256

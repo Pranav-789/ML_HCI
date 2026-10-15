@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+numpy
+pandas
+qdrant-client
+dill
+motor
+pydantic
+pydantic-settings
