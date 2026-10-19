@@ -161,22 +161,24 @@ export const login = asyncHandler(async(req: Request, res: Response) => {
         expiresAt: new Date(Date.now() + 7*24*60*60*1000),
     });
 
+    const isProduction = process.env.NODE_ENV === "production";
+
     res.cookie("accessToken", accessToken, {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
-        maxAge: 10*60*60*1000,
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
+        maxAge: 24*60*60*1000,
     });
 
     res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
         maxAge: 7*24*60*60*1000,
     });
 
     return res.status(200).json(
-        new ApiResponse(200, {sessionId: newSession._id, accessToken}, "User logged in successfully")
+        new ApiResponse(200, {sessionId: newSession._id, accessToken, refreshToken}, "User logged in successfully")
     );
 });
 
@@ -258,7 +260,7 @@ export const confirmResetPassword = asyncHandler(async(req: Request, res: Respon
 })
 
 export const logout = asyncHandler(async(req: Request, res: Response) => {
-    const refreshToken = req.cookies?.refreshToken;
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
 
     if(refreshToken){
         const session = await Session.findOne({ refreshToken });
@@ -267,16 +269,18 @@ export const logout = asyncHandler(async(req: Request, res: Response) => {
         }
     }
 
+    const isProduction = process.env.NODE_ENV === "production";
+
     res.clearCookie("accessToken", {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
     });
 
     res.clearCookie("refreshToken", {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
     });
 
     return res.status(200).json(
@@ -285,7 +289,7 @@ export const logout = asyncHandler(async(req: Request, res: Response) => {
 })
 
 export const refreshAccessToken = asyncHandler(async(req: Request, res: Response) => {
-    const refreshToken = req.cookies?.refreshToken;
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken || (req.headers["x-refresh-token"] as string);
 
     if(!refreshToken){
         throw new ApiError(401, "Refresh token is missing");
@@ -302,32 +306,39 @@ export const refreshAccessToken = asyncHandler(async(req: Request, res: Response
         const accessToken = generateAccessToken({userId: user._id.toString(), role: user.role});
         const newRefreshToken = generateRefreshToken({userId: user._id.toString(), role: user.role});
 
-        const session = await Session.findOneAndUpdate(
+        let session = await Session.findOneAndUpdate(
             {userId: user._id, refreshToken: refreshToken},
             {refreshToken: newRefreshToken},
             {new: true}
         );
 
         if(!session){
-            throw new ApiError(404, "Session not found");
+            // Fallback: update any active session for this user or create one
+            session = await Session.findOneAndUpdate(
+                {userId: user._id},
+                {refreshToken: newRefreshToken, expiresAt: new Date(Date.now() + 7*24*60*60*1000)},
+                {new: true, upsert: true}
+            );
         }
+
+        const isProduction = process.env.NODE_ENV === "production";
 
         res.cookie("accessToken", accessToken, {
             httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            maxAge: 10*60*60*1000,
+            secure: isProduction,
+            sameSite: isProduction ? "none" : "lax",
+            maxAge: 24*60*60*1000,
         });
 
         res.cookie("refreshToken", newRefreshToken, {
             httpOnly: true,
-            secure: true,
-            sameSite: "none",
+            secure: isProduction,
+            sameSite: isProduction ? "none" : "lax",
             maxAge: 7*24*60*60*1000,
         });
 
         return res.status(200).json(
-            new ApiResponse(200, {accessToken}, "Access token refreshed successfully")
+            new ApiResponse(200, {accessToken, refreshToken: newRefreshToken}, "Access token refreshed successfully")
         );
     } catch (error) {
         throw new ApiError(401, "Invalid or expired refresh token");

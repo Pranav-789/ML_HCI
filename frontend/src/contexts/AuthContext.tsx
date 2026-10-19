@@ -13,6 +13,8 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   loading: boolean;
+  sessionExpired: boolean;
+  setSessionExpired: (expired: boolean) => void;
   login: (data: any) => Promise<void>;
   register: (data: any) => Promise<void>;
   logout: () => void;
@@ -38,8 +40,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const [sessionExpired, setSessionExpired] = useState(false);
+
   useEffect(() => {
     fetchProfile();
+
+    const handleSessionExpired = () => {
+      setSessionExpired(true);
+      setUser(null);
+    };
+
+    window.addEventListener("auth:session-expired", handleSessionExpired);
+    return () => {
+      window.removeEventListener("auth:session-expired", handleSessionExpired);
+    };
   }, []);
 
   const login = async (data: any) => {
@@ -49,8 +63,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (res.data.data.accessToken) {
           localStorage.setItem("accessToken", res.data.data.accessToken);
         }
+        if (res.data.data.refreshToken) {
+          localStorage.setItem("refreshToken", res.data.data.refreshToken);
+        }
+        setSessionExpired(false);
         await fetchProfile();
-        toast.success("Logged in successfully");
+        toast.success("Welcome back! Logged in successfully");
       }
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Login failed");
@@ -62,7 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await api.post("/auth/register", data);
       if (res.data.success) {
-        toast.success("Registered successfully. Please verify your email.");
+        toast.success("Account created successfully!");
       }
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Registration failed");
@@ -72,13 +90,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      await api.post("/auth/logout");
+      const refreshToken = localStorage.getItem("refreshToken");
+      await api.post("/auth/logout", { refreshToken });
     } catch (err) {
       console.error(err);
     } finally {
       localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
       setUser(null);
-      toast.info("Logged out");
+      setSessionExpired(false);
+      toast.info("Logged out safely");
     }
   };
 
@@ -89,7 +110,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, login, register, logout, updateUserTokens }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated: !!user,
+        loading,
+        sessionExpired,
+        setSessionExpired,
+        login,
+        register,
+        logout,
+        updateUserTokens,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

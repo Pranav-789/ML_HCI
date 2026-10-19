@@ -9,6 +9,7 @@ import { Register } from "./pages/Register";
 import { Dashboard } from "./pages/Dashboard";
 import { Recommendations } from "./pages/Recommendations";
 import { Landing } from "./pages/Landing";
+import { SessionExpiredModal } from "./components/SessionExpiredModal";
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -57,6 +58,7 @@ export const App: React.FC = () => {
       <ThemeProvider defaultTheme="system" storageKey="codeupengine-theme">
         <AuthProvider>
           <AppRoutes />
+          <SessionExpiredModal />
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>

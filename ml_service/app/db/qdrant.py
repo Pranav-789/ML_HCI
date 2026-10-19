@@ -44,4 +44,4 @@ def init_qdrant():
 
 def get_qdrant_client() -> QdrantClient:
     """Returns the Qdrant client instance."""
-    return qdrant_instance.client
+    return qdrant_instance.client  
